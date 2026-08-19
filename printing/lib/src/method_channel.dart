@@ -30,7 +30,6 @@ import 'package:pdf/pdf.dart';
 
 import 'callback.dart';
 import 'interface.dart';
-import 'method_channel_js.dart' if (dart.library.io) 'method_channel_ffi.dart';
 import 'output_type.dart';
 import 'print_job.dart';
 import 'printer.dart';
@@ -89,15 +88,7 @@ class MethodChannelPrinting extends PrintingPlatform {
             ),
           );
 
-          if (job.useFFI) {
-            return setErrorFfi(job, e.toString());
-          }
-
           rethrow;
-        }
-
-        if (job.useFFI) {
-          return setDocumentFfi(job, bytes);
         }
 
         return Uint8List.fromList(bytes);
@@ -180,6 +171,7 @@ class MethodChannelPrinting extends PrintingPlatform {
     bool usePrinterSettings,
     OutputType outputType,
     bool forceCustomPrintPaper,
+    bool windowsModernDialog,
   ) async {
     final job = _printJobs.add(
       onCompleted: Completer<bool>(),
@@ -200,6 +192,7 @@ class MethodChannelPrinting extends PrintingPlatform {
       'usePrinterSettings': usePrinterSettings,
       'outputType': outputType.index,
       'forceCustomPrintPaper': forceCustomPrintPaper,
+      if (windowsModernDialog) 'windowsModernDialog': windowsModernDialog,
     };
 
     await _channel.invokeMethod<int>('printPdf', params);

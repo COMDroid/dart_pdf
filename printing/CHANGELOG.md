@@ -1,9 +1,26 @@
 # Changelog
 
-## Unreleased
+## 5.15.1
 
+- Fix layoutPdf hanging forever in iOS App Store builds: return the document via the method-channel reply instead of a dlsym FFI callback, whose symbols are stripped from statically linked (Swift Package Manager) apps by distribution builds
+- Fix iOS/macOS crash (force-unwrapped CGDataProvider) when layoutPdf receives empty or malformed document data
+- Fix iOS `convertHtml` crash on iOS 26+ (UISceneDelegate lifecycle): resolve the key window from `connectedScenes` instead of the deprecated `delegate.window`/`keyWindow` lookup [Bilonik]
+- Fix Windows memory initialization in `print_job.cpp`: use `dmSize + dmDriverExtra` instead of `sizeof(DEVMODE)` for `ZeroMemory` — `DEVMODE` is a variable-length struct [timothee-escandell]
+
+## 5.15.0
+
+- Fix CVE-2024-4367: load pdf.js via ESM import (pdf.js 5.7.284)
 - Fix lint issues
 - Add Swift Package Manager support
+- Fix iOS crash in pickPrinter when the selected printer has a nil URL
+- fix printing web override and update pdf dependencies
+- Fix Windows PDFium lifecycle
+- Implementing support for modern print dialog on windows
+- Fix thread issues on iOS and MacOS printing plugin
+- Use random starting point for job IDs
+- PrintJob list shared between instances to avoid problems with multiple windows.
+- Fixed deadlock on macOS with newer Flutter versions & added filtering of redundant pdf layout requests.
+- Update min dart sdk to 3.12.0
 
 ## 5.14.3
 

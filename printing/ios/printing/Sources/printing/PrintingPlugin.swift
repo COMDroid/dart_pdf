@@ -17,22 +17,6 @@
 import Flutter
 import Foundation
 
-@_cdecl("net_nfet_printing_set_document")
-public func net_nfet_printing_set_document(job: UInt32, doc: UnsafePointer<UInt8>?, size: UInt64) {
-    guard let doc else {
-        return
-    }
-    PrintingPlugin.setDocument(job: job, doc: doc, size: size)
-}
-
-@_cdecl("net_nfet_printing_set_error")
-public func net_nfet_printing_set_error(job: UInt32, message: UnsafePointer<CChar>?) {
-    guard let message else {
-        return
-    }
-    PrintingPlugin.setError(job: job, message: message)
-}
-
 @objc
 public class PrintingPlugin: NSObject, FlutterPlugin {
     private static var instance: PrintingPlugin?
@@ -43,16 +27,6 @@ public class PrintingPlugin: NSObject, FlutterPlugin {
         self.channel = channel
         super.init()
         PrintingPlugin.instance = self
-    }
-
-    @objc
-    public static func setDocument(job: UInt32, doc: UnsafePointer<UInt8>, size: UInt64) {
-        instance!.jobs[job]?.setDocument(Data(bytes: doc, count: Int(size)))
-    }
-
-    @objc
-    public static func setError(job: UInt32, message: UnsafePointer<CChar>) {
-        instance!.jobs[job]?.cancelJob(String(cString: message))
     }
 
     /// Entry point
@@ -173,7 +147,11 @@ public class PrintingPlugin: NSObject, FlutterPlugin {
         }
     }
 
-    /// Request the Pdf document from flutter
+    /// Request the Pdf document from flutter. The document (or an error) comes
+    /// back as the method-channel reply. A dlsym-based FFI callback was used here
+    /// before, but the exported symbols get stripped from statically linked apps
+    /// in App Store distribution builds, silently breaking the lookup and leaving
+    /// the print preview waiting forever.
     public func onLayout(printJob: PrintJob, width: CGFloat, height: CGFloat, marginLeft: CGFloat, marginTop: CGFloat, marginRight: CGFloat, marginBottom: CGFloat) {
         let arg = [
             "width": width,
@@ -185,7 +163,17 @@ public class PrintingPlugin: NSObject, FlutterPlugin {
             "job": printJob.index,
         ] as [String: Any]
 
-        channel.invokeMethod("onLayout", arguments: arg)
+        DispatchQueue.main.async {
+            self.channel.invokeMethod("onLayout", arguments: arg) { result in
+                if let data = result as? FlutterStandardTypedData {
+                    printJob.setDocument(data.data)
+                } else if let error = result as? FlutterError {
+                    printJob.cancelJob(error.message)
+                } else {
+                    printJob.cancelJob(nil)
+                }
+            }
+        }
     }
 
     /// send completion status to flutter
@@ -195,8 +183,10 @@ public class PrintingPlugin: NSObject, FlutterPlugin {
             "error": error as Any,
             "job": printJob.index,
         ]
-        channel.invokeMethod("onCompleted", arguments: data)
         jobs.removeValue(forKey: UInt32(printJob.index))
+        DispatchQueue.main.async {
+            self.channel.invokeMethod("onCompleted", arguments: data)
+        }
     }
 
     /// send html to pdf data result to flutter
@@ -205,7 +195,9 @@ public class PrintingPlugin: NSObject, FlutterPlugin {
             "doc": FlutterStandardTypedData(bytes: pdfData),
             "job": printJob.index,
         ]
-        channel.invokeMethod("onHtmlRendered", arguments: data)
+        DispatchQueue.main.async {
+            self.channel.invokeMethod("onHtmlRendered", arguments: data)
+        }
     }
 
     /// send html to pdf conversion error to flutter
@@ -214,7 +206,9 @@ public class PrintingPlugin: NSObject, FlutterPlugin {
             "error": error,
             "job": printJob.index,
         ]
-        channel.invokeMethod("onHtmlError", arguments: data)
+        DispatchQueue.main.async {
+            self.channel.invokeMethod("onHtmlError", arguments: data)
+        }
     }
 
     /// send pdf to raster data result to flutter
@@ -225,7 +219,9 @@ public class PrintingPlugin: NSObject, FlutterPlugin {
             "height": height,
             "job": printJob.index,
         ]
-        channel.invokeMethod("onPageRasterized", arguments: data)
+        DispatchQueue.main.async {
+            self.channel.invokeMethod("onPageRasterized", arguments: data)
+        }
     }
 
     public func onPageRasterEnd(printJob: PrintJob, error: String?) {
@@ -233,6 +229,8 @@ public class PrintingPlugin: NSObject, FlutterPlugin {
             "job": printJob.index,
             "error": error as Any,
         ]
-        channel.invokeMethod("onPageRasterEnd", arguments: data)
+        DispatchQueue.main.async {
+            self.channel.invokeMethod("onPageRasterEnd", arguments: data)
+        }
     }
 }
